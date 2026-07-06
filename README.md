@@ -23,6 +23,7 @@ protocol-independent-notification-connector/
 ├── frontend/       # React + Vite web interface for live notification list
 ├── docs/           # Weekly reports and project documentation
 └── docker-compose.yml
+```
 
 ## İlk Hafta Hedefi
 
