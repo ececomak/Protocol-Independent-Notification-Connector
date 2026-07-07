@@ -1,0 +1,21 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Rider / JetBrains
+.idea/
+
+# VS Code
+.vscode/
+
+# Node / Frontend
+node_modules/
+dist/
+.env
+.env.local
+
+# macOS
+.DS_Store
