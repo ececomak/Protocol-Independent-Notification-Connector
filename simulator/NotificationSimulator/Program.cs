@@ -7,45 +7,124 @@ var notificationsEndpoint = $"{backendUrl}/api/notifications";
 
 using var httpClient = new HttpClient();
 
-var sampleMessage = new NotificationMessage(
-    Source: "simulator",
-    Type: "info",
-    Title: "Simulator test bildirimi",
-    Message: "Bu bildirim .NET simulator tarafından backend API'ye gönderilmiştir.",
-    DeduplicationKey: $"simulator-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
-    CreatedAt: DateTimeOffset.UtcNow
-);
-
 Console.WriteLine("Backend URL:");
 Console.WriteLine(backendUrl);
 
-Console.WriteLine("Sending sample message...");
-Console.WriteLine($"Title: {sampleMessage.Title}");
-Console.WriteLine($"Message: {sampleMessage.Message}");
-Console.WriteLine($"Deduplication Key: {sampleMessage.DeduplicationKey}");
+var duplicateKey = $"duplicate-scenario-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
 
-try
+var normalInfoMessage = new NotificationMessage(
+    Source: "simulator",
+    Type: "info",
+    Title: "Bilgilendirme bildirimi",
+    Message: "Simulator tarafından oluşturulan normal bilgilendirme mesajıdır.",
+    DeduplicationKey: $"info-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+    CreatedAt: DateTimeOffset.UtcNow
+);
+
+var warningMessage = new NotificationMessage(
+    Source: "simulator",
+    Type: "warning",
+    Title: "Uyarı bildirimi",
+    Message: "Simulator tarafından oluşturulan uyarı seviyesindeki mesajdır.",
+    DeduplicationKey: $"warning-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+    CreatedAt: DateTimeOffset.UtcNow
+);
+
+var errorMessage = new NotificationMessage(
+    Source: "simulator",
+    Type: "error",
+    Title: "Hata bildirimi",
+    Message: "Simulator tarafından oluşturulan hata seviyesindeki mesajdır.",
+    DeduplicationKey: $"error-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+    CreatedAt: DateTimeOffset.UtcNow
+);
+
+var firstDuplicateMessage = new NotificationMessage(
+    Source: "simulator",
+    Type: "info",
+    Title: "Duplicate test bildirimi",
+    Message: "Bu mesaj duplicate senaryosunun ilk gönderimidir.",
+    DeduplicationKey: duplicateKey,
+    CreatedAt: DateTimeOffset.UtcNow
+);
+
+var secondDuplicateMessage = new NotificationMessage(
+    Source: "simulator",
+    Type: "info",
+    Title: "Duplicate test bildirimi",
+    Message: "Bu mesaj aynı deduplication key ile tekrar gönderilmiştir.",
+    DeduplicationKey: duplicateKey,
+    CreatedAt: DateTimeOffset.UtcNow
+);
+
+var malformedMessage = new
 {
-    var response = await httpClient.PostAsJsonAsync(notificationsEndpoint, sampleMessage);
-    var responseBody = await response.Content.ReadAsStringAsync();
+    source = "simulator",
+    type = "warning",
+    title = "Bozuk mesaj testi",
+    deduplicationKey = $"malformed-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+    createdAt = DateTimeOffset.UtcNow
+};
 
-    if (response.IsSuccessStatusCode)
+await SendNotificationAsync(httpClient, notificationsEndpoint, "Normal info scenario", normalInfoMessage);
+await WaitAsync();
+
+await SendNotificationAsync(httpClient, notificationsEndpoint, "Warning scenario", warningMessage);
+await WaitAsync();
+
+await SendNotificationAsync(httpClient, notificationsEndpoint, "Error scenario", errorMessage);
+await WaitAsync();
+
+await SendNotificationAsync(httpClient, notificationsEndpoint, "Duplicate scenario - first message", firstDuplicateMessage);
+await WaitAsync();
+
+await SendNotificationAsync(httpClient, notificationsEndpoint, "Duplicate scenario - repeated message", secondDuplicateMessage);
+await WaitAsync();
+
+await SendNotificationAsync(httpClient, notificationsEndpoint, "Malformed message scenario", malformedMessage);
+
+Console.WriteLine();
+Console.WriteLine("Notification Simulator finished.");
+
+static async Task SendNotificationAsync(
+    HttpClient httpClient,
+    string notificationsEndpoint,
+    string scenarioName,
+    object notification)
+{
+    Console.WriteLine();
+    Console.WriteLine($"Scenario: {scenarioName}");
+    Console.WriteLine("Sending notification...");
+
+    try
     {
-        Console.WriteLine("Message sent successfully.");
+        var response = await httpClient.PostAsJsonAsync(notificationsEndpoint, notification);
+        var responseBody = await response.Content.ReadAsStringAsync();
+
+        Console.WriteLine($"Status Code: {(int)response.StatusCode}");
+
+        if (response.IsSuccessStatusCode)
+        {
+            Console.WriteLine("Result: Message sent successfully.");
+        }
+        else
+        {
+            Console.WriteLine("Result: Message was rejected or ignored by backend.");
+        }
+
         Console.WriteLine("Backend response:");
         Console.WriteLine(responseBody);
     }
-    else
+    catch (HttpRequestException ex)
     {
-        Console.WriteLine($"Message could not be sent. Status code: {(int)response.StatusCode}");
-        Console.WriteLine("Backend response:");
-        Console.WriteLine(responseBody);
+        Console.WriteLine("Backend API'ye ulaşılamadı.");
+        Console.WriteLine(ex.Message);
     }
 }
-catch (HttpRequestException ex)
+
+static async Task WaitAsync()
 {
-    Console.WriteLine("Backend API'ye ulaşılamadı.");
-    Console.WriteLine(ex.Message);
+    await Task.Delay(1000);
 }
 
 public record NotificationMessage(
