@@ -2,7 +2,9 @@
 
 Console.WriteLine("Notification Simulator started.");
 
-var backendUrl = "http://localhost:5199";
+var backendUrl = Environment.GetEnvironmentVariable("BACKEND_URL")
+    ?? "http://localhost:5199";
+
 var notificationsEndpoint = $"{backendUrl}/api/notifications";
 
 using var httpClient = new HttpClient();
@@ -10,15 +12,18 @@ using var httpClient = new HttpClient();
 Console.WriteLine("Backend URL:");
 Console.WriteLine(backendUrl);
 
-var duplicateKey = $"duplicate-scenario-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}";
+var timestamp = DateTimeOffset.UtcNow;
+var timestampText = timestamp.ToString("yyyyMMddHHmmss");
+
+var duplicateKey = $"duplicate-scenario-{timestampText}";
 
 var normalInfoMessage = new NotificationMessage(
     Source: "simulator",
     Type: "info",
     Title: "Bilgilendirme bildirimi",
     Message: "Simulator tarafından oluşturulan normal bilgilendirme mesajıdır.",
-    DeduplicationKey: $"info-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
-    CreatedAt: DateTimeOffset.UtcNow
+    DeduplicationKey: $"info-{timestampText}",
+    CreatedAt: timestamp
 );
 
 var warningMessage = new NotificationMessage(
@@ -26,8 +31,8 @@ var warningMessage = new NotificationMessage(
     Type: "warning",
     Title: "Uyarı bildirimi",
     Message: "Simulator tarafından oluşturulan uyarı seviyesindeki mesajdır.",
-    DeduplicationKey: $"warning-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
-    CreatedAt: DateTimeOffset.UtcNow
+    DeduplicationKey: $"warning-{timestampText}",
+    CreatedAt: timestamp
 );
 
 var errorMessage = new NotificationMessage(
@@ -35,8 +40,8 @@ var errorMessage = new NotificationMessage(
     Type: "error",
     Title: "Hata bildirimi",
     Message: "Simulator tarafından oluşturulan hata seviyesindeki mesajdır.",
-    DeduplicationKey: $"error-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
-    CreatedAt: DateTimeOffset.UtcNow
+    DeduplicationKey: $"error-{timestampText}",
+    CreatedAt: timestamp
 );
 
 var firstDuplicateMessage = new NotificationMessage(
@@ -45,7 +50,7 @@ var firstDuplicateMessage = new NotificationMessage(
     Title: "Duplicate test bildirimi",
     Message: "Bu mesaj duplicate senaryosunun ilk gönderimidir.",
     DeduplicationKey: duplicateKey,
-    CreatedAt: DateTimeOffset.UtcNow
+    CreatedAt: timestamp
 );
 
 var secondDuplicateMessage = new NotificationMessage(
@@ -54,7 +59,7 @@ var secondDuplicateMessage = new NotificationMessage(
     Title: "Duplicate test bildirimi",
     Message: "Bu mesaj aynı deduplication key ile tekrar gönderilmiştir.",
     DeduplicationKey: duplicateKey,
-    CreatedAt: DateTimeOffset.UtcNow
+    CreatedAt: timestamp
 );
 
 var malformedMessage = new
@@ -62,8 +67,8 @@ var malformedMessage = new
     source = "simulator",
     type = "warning",
     title = "Bozuk mesaj testi",
-    deduplicationKey = $"malformed-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
-    createdAt = DateTimeOffset.UtcNow
+    deduplicationKey = $"malformed-{timestampText}",
+    createdAt = timestamp
 };
 
 await SendNotificationAsync(httpClient, notificationsEndpoint, "Normal info scenario", normalInfoMessage);

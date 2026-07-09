@@ -4,15 +4,16 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var allowedOrigins = (Environment.GetEnvironmentVariable("FRONTEND_ORIGINS")
+        ?? "http://localhost:3000,http://localhost:5173")
+    .Split(",", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendPolicy", policy =>
     {
         policy
-            .WithOrigins(
-                "http://localhost:3000",
-                "http://localhost:5173"
-            )
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
@@ -28,6 +29,7 @@ app.MapGet("/", () => Results.Ok(new
 {
     service = "Notification Backend",
     status = "running",
+    allowedOrigins,
     endpoints = new[]
     {
         "GET /api/health",

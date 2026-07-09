@@ -12,7 +12,8 @@ type NotificationEnvelope = {
   receivedAt: string;
 };
 
-const API_BASE_URL = "http://localhost:5199";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:5199";
 
 function App() {
   const [notifications, setNotifications] = useState<NotificationEnvelope[]>([]);
