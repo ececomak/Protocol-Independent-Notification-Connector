@@ -31,6 +31,26 @@ Bu aşamada simulator, backend API’ye HTTP üzerinden senaryo bildirimleri gö
 
 İlerleyen aşamalarda simulator aynı olayları RabbitMQ, WebSocket, Redis pub/sub ve Webhook üzerinden üretecek; connector ise bu kaynaklardan gelen mesajları adapter yapısı ile okuyup ortak formata dönüştürecektir.
 
+## Hafta 1 Özeti
+
+İlk hafta kapsamında proje için temel uçtan uca akış kurulmuştur. Bu aşamada amaç, ilerleyen haftalarda geliştirilecek connector mimarisine geçmeden önce simulator, backend ve frontend bileşenlerinin birlikte çalıştığını doğrulamaktır.
+
+Tamamlanan çalışmalar:
+
+- .NET 10 geliştirme ortamı hazırlandı.
+- GitHub repository oluşturuldu ve proje yapısı planlandı.
+- ASP.NET Core Minimal API ile backend uygulaması oluşturuldu.
+- Backend tarafında bildirim alma, listeleme, doğrulama ve tekilleştirme kontrolleri eklendi.
+- React + Vite ile frontend bildirim listesi arayüzü oluşturuldu.
+- Frontend tarafında backend bağlantı durumu, son güncelleme zamanı ve bildirim türlerine göre sayaçlar eklendi.
+- .NET 10 console simulator uygulaması oluşturuldu.
+- Simulator üzerinden normal, warning, error, duplicate ve bozuk mesaj senaryoları üretildi.
+- Simulator -> Backend API -> Frontend Liste akışı test edildi.
+- Servis URL değerleri environment variable üzerinden yönetilebilir hale getirildi.
+- Local çalıştırma adımları ve environment değerleri README dosyasına eklendi.
+- Connector bileşeni için .NET 10 Worker Service projesi oluşturuldu.
+- IConnector, ISourceAdapter, RawMessage, NotificationEnvelope ve ConnectorCore yapıları hazırlanarak connector çekirdeğinin temeli atıldı.
+
 ## Planlanan Final Mimari
 
 ```txt
