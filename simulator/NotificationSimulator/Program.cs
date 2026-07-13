@@ -2,15 +2,26 @@
 
 Console.WriteLine("Notification Simulator started.");
 
+var simulatorTarget = Environment.GetEnvironmentVariable("SIMULATOR_TARGET")
+    ?? "backend";
+
 var backendUrl = Environment.GetEnvironmentVariable("BACKEND_URL")
     ?? "http://localhost:5199";
 
-var notificationsEndpoint = $"{backendUrl}/api/notifications";
+var webhookUrl = Environment.GetEnvironmentVariable("WEBHOOK_URL")
+    ?? "http://localhost:7071/webhook/notifications";
+
+var notificationsEndpoint = simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+    ? webhookUrl
+    : $"{backendUrl}/api/notifications";
 
 using var httpClient = new HttpClient();
 
-Console.WriteLine("Backend URL:");
-Console.WriteLine(backendUrl);
+Console.WriteLine("Simulator target:");
+Console.WriteLine(simulatorTarget);
+
+Console.WriteLine("Target endpoint:");
+Console.WriteLine(notificationsEndpoint);
 
 var timestamp = DateTimeOffset.UtcNow;
 var timestampText = timestamp.ToString("yyyyMMddHHmmss");
@@ -18,7 +29,9 @@ var timestampText = timestamp.ToString("yyyyMMddHHmmss");
 var duplicateKey = $"duplicate-scenario-{timestampText}";
 
 var normalInfoMessage = new NotificationMessage(
-    Source: "simulator",
+    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? "simulator-webhook"
+        : "simulator",
     Type: "info",
     Title: "Bilgilendirme bildirimi",
     Message: "Simulator tarafından oluşturulan normal bilgilendirme mesajıdır.",
@@ -27,7 +40,9 @@ var normalInfoMessage = new NotificationMessage(
 );
 
 var warningMessage = new NotificationMessage(
-    Source: "simulator",
+    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? "simulator-webhook"
+        : "simulator",
     Type: "warning",
     Title: "Uyarı bildirimi",
     Message: "Simulator tarafından oluşturulan uyarı seviyesindeki mesajdır.",
@@ -36,7 +51,9 @@ var warningMessage = new NotificationMessage(
 );
 
 var errorMessage = new NotificationMessage(
-    Source: "simulator",
+    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? "simulator-webhook"
+        : "simulator",
     Type: "error",
     Title: "Hata bildirimi",
     Message: "Simulator tarafından oluşturulan hata seviyesindeki mesajdır.",
@@ -45,7 +62,9 @@ var errorMessage = new NotificationMessage(
 );
 
 var firstDuplicateMessage = new NotificationMessage(
-    Source: "simulator",
+    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? "simulator-webhook"
+        : "simulator",
     Type: "info",
     Title: "Duplicate test bildirimi",
     Message: "Bu mesaj duplicate senaryosunun ilk gönderimidir.",
@@ -54,7 +73,9 @@ var firstDuplicateMessage = new NotificationMessage(
 );
 
 var secondDuplicateMessage = new NotificationMessage(
-    Source: "simulator",
+    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? "simulator-webhook"
+        : "simulator",
     Type: "info",
     Title: "Duplicate test bildirimi",
     Message: "Bu mesaj aynı deduplication key ile tekrar gönderilmiştir.",
@@ -64,7 +85,9 @@ var secondDuplicateMessage = new NotificationMessage(
 
 var malformedMessage = new
 {
-    source = "simulator",
+    source = simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? "simulator-webhook"
+        : "simulator",
     type = "warning",
     title = "Bozuk mesaj testi",
     deduplicationKey = $"malformed-{timestampText}",
@@ -114,15 +137,15 @@ static async Task SendNotificationAsync(
         }
         else
         {
-            Console.WriteLine("Result: Message was rejected or ignored by backend.");
+            Console.WriteLine("Result: Message was rejected or ignored.");
         }
 
-        Console.WriteLine("Backend response:");
+        Console.WriteLine("Response:");
         Console.WriteLine(responseBody);
     }
     catch (HttpRequestException ex)
     {
-        Console.WriteLine("Backend API'ye ulaşılamadı.");
+        Console.WriteLine("Target endpoint could not be reached.");
         Console.WriteLine(ex.Message);
     }
 }

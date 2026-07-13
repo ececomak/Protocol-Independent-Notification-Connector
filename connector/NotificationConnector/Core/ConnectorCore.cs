@@ -50,24 +50,58 @@ public class ConnectorCore : IConnector
     {
         var envelope = Normalize(rawMessage);
 
+        if (envelope is null)
+        {
+            Console.WriteLine(
+                $"Invalid raw message ignored. Adapter: {rawMessage.AdapterName}, Payload: {rawMessage.Payload}"
+            );
+
+            return;
+        }
+
         if (OnMessage is not null)
         {
             await OnMessage.Invoke(envelope);
         }
     }
 
-    private static NotificationEnvelope Normalize(RawMessage rawMessage)
+    private static NotificationEnvelope? Normalize(RawMessage rawMessage)
     {
         try
         {
-            var payload = JsonSerializer.Deserialize<Dictionary<string, string>>(rawMessage.Payload);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            };
 
-            var source = payload?.GetValueOrDefault("source") ?? rawMessage.AdapterName;
-            var type = payload?.GetValueOrDefault("type") ?? "info";
-            var title = payload?.GetValueOrDefault("title") ?? "Notification";
-            var message = payload?.GetValueOrDefault("message") ?? rawMessage.Payload;
+            var payload = JsonSerializer.Deserialize<IncomingNotificationPayload>(
+                rawMessage.Payload,
+                options
+            );
 
-            var deduplicationKey = GenerateDeduplicationKey(source, type, title, message);
+            if (payload is null)
+            {
+                return null;
+            }
+
+            if (string.IsNullOrWhiteSpace(payload.Source) ||
+                string.IsNullOrWhiteSpace(payload.Type) ||
+                string.IsNullOrWhiteSpace(payload.Title) ||
+                string.IsNullOrWhiteSpace(payload.Message))
+            {
+                return null;
+            }
+
+            var source = payload.Source.Trim();
+            var type = payload.Type.Trim();
+            var title = payload.Title.Trim();
+            var message = payload.Message.Trim();
+
+            var deduplicationKey = string.IsNullOrWhiteSpace(payload.DeduplicationKey)
+                ? GenerateDeduplicationKey(source, type, title, message)
+                : payload.DeduplicationKey.Trim();
+
+            var createdAt = payload.CreatedAt ?? rawMessage.ReceivedAt;
 
             return new NotificationEnvelope(
                 Source: source,
@@ -75,26 +109,12 @@ public class ConnectorCore : IConnector
                 Title: title,
                 Message: message,
                 DeduplicationKey: deduplicationKey,
-                CreatedAt: rawMessage.ReceivedAt
+                CreatedAt: createdAt
             );
         }
         catch
         {
-            var deduplicationKey = GenerateDeduplicationKey(
-                rawMessage.AdapterName,
-                "raw",
-                "Malformed message",
-                rawMessage.Payload
-            );
-
-            return new NotificationEnvelope(
-                Source: rawMessage.AdapterName,
-                Type: "raw",
-                Title: "Malformed message",
-                Message: rawMessage.Payload,
-                DeduplicationKey: deduplicationKey,
-                CreatedAt: rawMessage.ReceivedAt
-            );
+            return null;
         }
     }
 
@@ -110,4 +130,13 @@ public class ConnectorCore : IConnector
 
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    private record IncomingNotificationPayload(
+        string? Source,
+        string? Type,
+        string? Title,
+        string? Message,
+        string? DeduplicationKey,
+        DateTimeOffset? CreatedAt
+    );
 }
