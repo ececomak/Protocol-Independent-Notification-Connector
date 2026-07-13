@@ -8,6 +8,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddSingleton<IConnector, ConnectorCore>();
 
 builder.Services.AddSingleton<MockSourceAdapter>();
+builder.Services.AddSingleton<WebhookSourceAdapter>();
 
 builder.Services.AddHttpClient<INotificationPublisher, BackendNotificationPublisher>();
 
