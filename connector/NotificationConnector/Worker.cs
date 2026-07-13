@@ -1,4 +1,6 @@
+using NotificationConnector.Adapters;
 using NotificationConnector.Core;
+using NotificationConnector.Publishers;
 
 namespace NotificationConnector;
 
@@ -6,16 +8,26 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
     private readonly IConnector _connector;
+    private readonly MockSourceAdapter _mockSourceAdapter;
+    private readonly INotificationPublisher _notificationPublisher;
 
-    public Worker(ILogger<Worker> logger, IConnector connector)
+    public Worker(
+        ILogger<Worker> logger,
+        IConnector connector,
+        MockSourceAdapter mockSourceAdapter,
+        INotificationPublisher notificationPublisher)
     {
         _logger = logger;
         _connector = connector;
+        _mockSourceAdapter = mockSourceAdapter;
+        _notificationPublisher = notificationPublisher;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger.LogInformation("Notification Connector Worker started.");
+
+        _connector.Register(_mockSourceAdapter);
 
         _connector.OnMessage += async envelope =>
         {
@@ -26,7 +38,7 @@ public class Worker : BackgroundService
                 envelope.Title
             );
 
-            await Task.CompletedTask;
+            await _notificationPublisher.PublishAsync(envelope, stoppingToken);
         };
 
         await _connector.StartAsync(stoppingToken);
