@@ -1,4 +1,7 @@
 ﻿using System.Net.Http.Json;
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
 
 Console.WriteLine("Notification Simulator started.");
 
@@ -11,27 +14,28 @@ var backendUrl = Environment.GetEnvironmentVariable("BACKEND_URL")
 var webhookUrl = Environment.GetEnvironmentVariable("WEBHOOK_URL")
     ?? "http://localhost:7071/webhook/notifications";
 
-var notificationsEndpoint = simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-    ? webhookUrl
-    : $"{backendUrl}/api/notifications";
+var websocketUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL")
+    ?? "ws://localhost:7072/ws/notifications";
 
 using var httpClient = new HttpClient();
 
 Console.WriteLine("Simulator target:");
 Console.WriteLine(simulatorTarget);
 
-Console.WriteLine("Target endpoint:");
-Console.WriteLine(notificationsEndpoint);
-
 var timestamp = DateTimeOffset.UtcNow;
 var timestampText = timestamp.ToString("yyyyMMddHHmmss");
+
+var sourceName = simulatorTarget.ToLowerInvariant() switch
+{
+    "webhook" => "simulator-webhook",
+    "websocket" => "simulator-websocket",
+    _ => "simulator"
+};
 
 var duplicateKey = $"duplicate-scenario-{timestampText}";
 
 var normalInfoMessage = new NotificationMessage(
-    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-        ? "simulator-webhook"
-        : "simulator",
+    Source: sourceName,
     Type: "info",
     Title: "Bilgilendirme bildirimi",
     Message: "Simulator tarafından oluşturulan normal bilgilendirme mesajıdır.",
@@ -40,9 +44,7 @@ var normalInfoMessage = new NotificationMessage(
 );
 
 var warningMessage = new NotificationMessage(
-    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-        ? "simulator-webhook"
-        : "simulator",
+    Source: sourceName,
     Type: "warning",
     Title: "Uyarı bildirimi",
     Message: "Simulator tarafından oluşturulan uyarı seviyesindeki mesajdır.",
@@ -51,9 +53,7 @@ var warningMessage = new NotificationMessage(
 );
 
 var errorMessage = new NotificationMessage(
-    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-        ? "simulator-webhook"
-        : "simulator",
+    Source: sourceName,
     Type: "error",
     Title: "Hata bildirimi",
     Message: "Simulator tarafından oluşturulan hata seviyesindeki mesajdır.",
@@ -62,9 +62,7 @@ var errorMessage = new NotificationMessage(
 );
 
 var firstDuplicateMessage = new NotificationMessage(
-    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-        ? "simulator-webhook"
-        : "simulator",
+    Source: sourceName,
     Type: "info",
     Title: "Duplicate test bildirimi",
     Message: "Bu mesaj duplicate senaryosunun ilk gönderimidir.",
@@ -73,9 +71,7 @@ var firstDuplicateMessage = new NotificationMessage(
 );
 
 var secondDuplicateMessage = new NotificationMessage(
-    Source: simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-        ? "simulator-webhook"
-        : "simulator",
+    Source: sourceName,
     Type: "info",
     Title: "Duplicate test bildirimi",
     Message: "Bu mesaj aynı deduplication key ile tekrar gönderilmiştir.",
@@ -85,31 +81,51 @@ var secondDuplicateMessage = new NotificationMessage(
 
 var malformedMessage = new
 {
-    source = simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
-        ? "simulator-webhook"
-        : "simulator",
+    source = sourceName,
     type = "warning",
     title = "Bozuk mesaj testi",
     deduplicationKey = $"malformed-{timestampText}",
     createdAt = timestamp
 };
 
-await SendNotificationAsync(httpClient, notificationsEndpoint, "Normal info scenario", normalInfoMessage);
-await WaitAsync();
+var messages = new (string ScenarioName, object Payload)[]
+{
+    ("Normal info scenario", normalInfoMessage),
+    ("Warning scenario", warningMessage),
+    ("Error scenario", errorMessage),
+    ("Duplicate scenario - first message", firstDuplicateMessage),
+    ("Duplicate scenario - repeated message", secondDuplicateMessage),
+    ("Malformed message scenario", malformedMessage)
+};
 
-await SendNotificationAsync(httpClient, notificationsEndpoint, "Warning scenario", warningMessage);
-await WaitAsync();
+if (simulatorTarget.Equals("websocket", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Target endpoint:");
+    Console.WriteLine(websocketUrl);
 
-await SendNotificationAsync(httpClient, notificationsEndpoint, "Error scenario", errorMessage);
-await WaitAsync();
+    await SendMessagesToWebSocketAsync(websocketUrl, messages);
+}
+else
+{
+    var notificationsEndpoint = simulatorTarget.Equals("webhook", StringComparison.OrdinalIgnoreCase)
+        ? webhookUrl
+        : $"{backendUrl}/api/notifications";
 
-await SendNotificationAsync(httpClient, notificationsEndpoint, "Duplicate scenario - first message", firstDuplicateMessage);
-await WaitAsync();
+    Console.WriteLine("Target endpoint:");
+    Console.WriteLine(notificationsEndpoint);
 
-await SendNotificationAsync(httpClient, notificationsEndpoint, "Duplicate scenario - repeated message", secondDuplicateMessage);
-await WaitAsync();
+    foreach (var message in messages)
+    {
+        await SendNotificationAsync(
+            httpClient,
+            notificationsEndpoint,
+            message.ScenarioName,
+            message.Payload
+        );
 
-await SendNotificationAsync(httpClient, notificationsEndpoint, "Malformed message scenario", malformedMessage);
+        await WaitAsync();
+    }
+}
 
 Console.WriteLine();
 Console.WriteLine("Notification Simulator finished.");
@@ -146,6 +162,52 @@ static async Task SendNotificationAsync(
     catch (HttpRequestException ex)
     {
         Console.WriteLine("Target endpoint could not be reached.");
+        Console.WriteLine(ex.Message);
+    }
+}
+
+static async Task SendMessagesToWebSocketAsync(
+    string websocketUrl,
+    IEnumerable<(string ScenarioName, object Payload)> messages)
+{
+    using var webSocket = new ClientWebSocket();
+
+    try
+    {
+        Console.WriteLine("Connecting to WebSocket endpoint...");
+        await webSocket.ConnectAsync(new Uri(websocketUrl), CancellationToken.None);
+        Console.WriteLine("WebSocket connection established.");
+
+        foreach (var message in messages)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Scenario: {message.ScenarioName}");
+            Console.WriteLine("Sending WebSocket message...");
+
+            var json = JsonSerializer.Serialize(message.Payload);
+            var bytes = Encoding.UTF8.GetBytes(json);
+
+            await webSocket.SendAsync(
+                new ArraySegment<byte>(bytes),
+                WebSocketMessageType.Text,
+                endOfMessage: true,
+                cancellationToken: CancellationToken.None
+            );
+
+            Console.WriteLine("Result: WebSocket message sent.");
+
+            await WaitAsync();
+        }
+
+        await webSocket.CloseAsync(
+            WebSocketCloseStatus.NormalClosure,
+            "Simulator finished.",
+            CancellationToken.None
+        );
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("WebSocket endpoint could not be reached.");
         Console.WriteLine(ex.Message);
     }
 }

@@ -9,6 +9,7 @@ builder.Services.AddSingleton<IConnector, ConnectorCore>();
 
 builder.Services.AddSingleton<MockSourceAdapter>();
 builder.Services.AddSingleton<WebhookSourceAdapter>();
+builder.Services.AddSingleton<WebSocketSourceAdapter>();
 
 builder.Services.AddHttpClient<INotificationPublisher, BackendNotificationPublisher>();
 

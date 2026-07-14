@@ -10,6 +10,7 @@ public class Worker : BackgroundService
     private readonly IConnector _connector;
     private readonly MockSourceAdapter _mockSourceAdapter;
     private readonly WebhookSourceAdapter _webhookSourceAdapter;
+    private readonly WebSocketSourceAdapter _webSocketSourceAdapter;
     private readonly INotificationPublisher _notificationPublisher;
 
     public Worker(
@@ -17,12 +18,14 @@ public class Worker : BackgroundService
         IConnector connector,
         MockSourceAdapter mockSourceAdapter,
         WebhookSourceAdapter webhookSourceAdapter,
+        WebSocketSourceAdapter webSocketSourceAdapter,
         INotificationPublisher notificationPublisher)
     {
         _logger = logger;
         _connector = connector;
         _mockSourceAdapter = mockSourceAdapter;
         _webhookSourceAdapter = webhookSourceAdapter;
+        _webSocketSourceAdapter = webSocketSourceAdapter;
         _notificationPublisher = notificationPublisher;
     }
 
@@ -32,6 +35,7 @@ public class Worker : BackgroundService
 
         _connector.Register(_mockSourceAdapter);
         _connector.Register(_webhookSourceAdapter);
+        _connector.Register(_webSocketSourceAdapter);
 
         _connector.OnMessage += async envelope =>
         {
