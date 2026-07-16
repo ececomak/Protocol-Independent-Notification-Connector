@@ -1,9 +1,14 @@
 using NotificationConnector;
 using NotificationConnector.Adapters;
 using NotificationConnector.Core;
+using NotificationConnector.Options;
 using NotificationConnector.Publishers;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.Configure<ConnectorOptions>(
+    builder.Configuration.GetSection("Connector")
+);
 
 builder.Services.AddSingleton<IConnector, ConnectorCore>();
 
