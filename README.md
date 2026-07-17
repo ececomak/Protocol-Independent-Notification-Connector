@@ -1,148 +1,78 @@
 # Protocol Independent Notification Connector
 
-Bu proje, farklı protokollerden gelen bildirim mesajlarını ortak bir formata dönüştürerek backend üzerinden işleyen ve frontend arayüzünde canlı olarak listeleyen uçtan uca bir sistemdir.
+Bu proje, farklı protokollerden gelen bildirim mesajlarını ortak bir formata dönüştürerek backend üzerinden işleyen ve frontend arayüzünde listeleyen uçtan uca bir sistemdir.
 
 ## Amaç
 
-Projenin temel amacı; RabbitMQ, WebSocket, Redis pub/sub ve Webhook gibi farklı kaynaklardan gelen mesajları protokol bağımsız bir connector yapısı üzerinden ortak bir bildirim formatına dönüştürmektir.
+Projenin amacı; RabbitMQ, WebSocket, Redis pub/sub ve Webhook gibi farklı kaynaklardan gelen mesajları protokol bağımsız bir connector yapısı üzerinden ortak bir bildirim formatına dönüştürmektir.
 
-Normalize edilen mesajlar backend API tarafından alınır, doğrulanır, tekrar eden kayıtlar elenir ve frontend arayüzünde listelenir.
+Connector tarafından normalize edilen mesajlar backend API’ye iletilir. Backend tarafında mesajlar doğrulanır, tekrar eden kayıtlar elenir ve frontend arayüzünde listelenir.
 
 ## Bileşenler
 
 | Bileşen | Açıklama | Teknoloji |
 |---|---|---|
-| Simulator | Test bildirimleri ve senaryo mesajları üreten uygulama | .NET 10 Console |
-| Connector | Protokol bağımsız çekirdek ve kaynak adapter yapısı | .NET 10 Worker |
-| Backend | Bildirimleri alan, doğrulayan, tekilleştiren ve listeleyen API | ASP.NET Core Minimal API |
-| Frontend | Bildirimleri listeleyen tek sayfalık web arayüzü | React + Vite |
+| Simulator | Test bildirimleri üretir | .NET 10 Console |
+| Connector | Protokol bağımsız çekirdek ve adapter yapısı | .NET 10 Worker Service |
+| Backend | Bildirimleri alan ve listeleyen API | ASP.NET Core Minimal API |
+| Frontend | Bildirimleri gösteren web arayüzü | React + Vite |
 
-## Mevcut Durum
-
-İlk hafta kapsamında simulator, backend ve frontend arasında temel uçtan uca veri akışı kurulmuştur.
-
-Mevcut çalışan akış:
+## Mevcut Çalışan Akışlar
 
 ```txt
-Simulator -> Backend API -> Frontend Liste
+Simulator -> Backend API -> Frontend
+
+Simulator -> WebhookSourceAdapter -> ConnectorCore -> Backend API -> Frontend
+
+Simulator -> WebSocketSourceAdapter -> ConnectorCore -> Backend API -> Frontend
 ```
 
-Bu aşamada simulator, backend API’ye HTTP üzerinden senaryo bildirimleri göndermektedir.
-
-İlerleyen aşamalarda simulator aynı olayları RabbitMQ, WebSocket, Redis pub/sub ve Webhook üzerinden üretecek; connector ise bu kaynaklardan gelen mesajları adapter yapısı ile okuyup ortak formata dönüştürecektir.
-
-## Hafta 1 Özeti
-
-İlk hafta kapsamında proje için temel uçtan uca akış kurulmuştur. Bu aşamada amaç, ilerleyen haftalarda geliştirilecek connector mimarisine geçmeden önce simulator, backend ve frontend bileşenlerinin birlikte çalıştığını doğrulamaktır.
-
-Tamamlanan çalışmalar:
-
-- .NET 10 geliştirme ortamı hazırlandı.
-- GitHub repository oluşturuldu ve proje yapısı planlandı.
-- ASP.NET Core Minimal API ile backend uygulaması oluşturuldu.
-- Backend tarafında bildirim alma, listeleme, doğrulama ve tekilleştirme kontrolleri eklendi.
-- React + Vite ile frontend bildirim listesi arayüzü oluşturuldu.
-- Frontend tarafında backend bağlantı durumu, son güncelleme zamanı ve bildirim türlerine göre sayaçlar eklendi.
-- .NET 10 console simulator uygulaması oluşturuldu.
-- Simulator üzerinden normal, warning, error, duplicate ve bozuk mesaj senaryoları üretildi.
-- Simulator -> Backend API -> Frontend Liste akışı test edildi.
-- Servis URL değerleri environment variable üzerinden yönetilebilir hale getirildi.
-- Local çalıştırma adımları ve environment değerleri README dosyasına eklendi.
-- Connector bileşeni için .NET 10 Worker Service projesi oluşturuldu.
-- IConnector, ISourceAdapter, RawMessage, NotificationEnvelope ve ConnectorCore yapıları hazırlanarak connector çekirdeğinin temeli atıldı.
-
-## Planlanan Final Mimari
-
-```txt
-Simulator
- ├── RabbitMQ
- ├── WebSocket
- ├── Redis pub/sub
- └── Webhook
-      │
-      ▼
-Connector
- ├── Protocol-independent core
- ├── RabbitMQ adapter
- ├── WebSocket adapter
- ├── Redis adapter
- └── Webhook adapter
-      │
-      ▼
-Backend API
-      │
-      ▼
-Frontend
-```
+Webhook ve WebSocket adapterları connector üzerinden çalışmaktadır. Aktif adapter seçimi `appsettings.json` dosyası üzerinden yapılır.
 
 ## Proje Yapısı
 
 ```txt
 protocol-independent-notification-connector/
-├── simulator/
-│   └── NotificationSimulator/
-├── connector/
-├── backend/
-│   └── NotificationBackend/
-├── frontend/
-│   └── notification-frontend/
+├── simulator/NotificationSimulator
+├── connector/NotificationConnector
+├── backend/NotificationBackend
+├── frontend/notification-frontend
 ├── docs/
 └── docker-compose.yml
 ```
 
-> Not: Connector adapterları, RabbitMQ, Redis, WebSocket, Webhook entegrasyonları ve Docker Compose yapısı ilerleyen aşamalarda tamamlanacaktır.
+## Local Portlar
 
-## Gereksinimler
-
-Local geliştirme için:
-
-- .NET 10 SDK
-- Node.js
-- npm
-- Git
-
-Final teslim aşamasında sistem Docker Compose ile tek komutla ayağa kaldırılacak şekilde düzenlenecektir.
-
-## Kullanılan Local Portlar
-
-| Servis | Local Adres | Açıklama |
-|---|---|---|
-| Backend | `http://localhost:5199` | ASP.NET Core Minimal API |
-| Frontend | `http://localhost:5173` | React + Vite geliştirme sunucusu |
-
-Port değerleri local geliştirme ortamına aittir. Final Docker Compose aşamasında kullanılacak portlar README içerisinde ayrıca güncellenecektir.
+| Servis | Adres |
+|---|---|
+| Backend | `http://localhost:5199` |
+| Frontend | `http://localhost:5173` |
+| Webhook Adapter | `http://localhost:7071/webhook/notifications` |
+| WebSocket Adapter | `ws://localhost:7072/ws/notifications` |
 
 ## Environment Değerleri
 
-Projede servis adreslerinin doğrudan koda bağımlı kalmaması için environment variable desteği eklenmiştir.
+| Bileşen | Değişken | Açıklama |
+|---|---|---|
+| Frontend | `VITE_API_BASE_URL` | Frontend’in bağlanacağı backend adresi |
+| Simulator | `BACKEND_URL` | Backend hedef adresi |
+| Simulator | `WEBHOOK_URL` | Webhook hedef adresi |
+| Simulator | `WEBSOCKET_URL` | WebSocket hedef adresi |
+| Simulator | `SIMULATOR_TARGET` | `backend`, `webhook` veya `websocket` |
+| Backend | `FRONTEND_ORIGINS` | CORS için izin verilen frontend adresleri |
 
-| Bileşen | Değişken | Varsayılan Değer | Açıklama |
-|---|---|---|---|
-| Frontend | `VITE_API_BASE_URL` | `http://localhost:5199` | Frontend’in istek atacağı backend API adresi |
-| Simulator | `BACKEND_URL` | `http://localhost:5199` | Simulator’ın bildirim göndereceği backend adresi |
-| Backend | `FRONTEND_ORIGINS` | `http://localhost:3000,http://localhost:5173` | CORS için izin verilen frontend adresleri |
+## Local Çalıştırma
 
+Projeyi local ortamda çalıştırmak için backend, frontend, connector ve simulator ayrı terminallerde başlatılır.
 
-## Local Çalıştırma Adımları
-
-Projeyi local ortamda çalıştırmak için backend, frontend ve simulator ayrı terminallerde başlatılır.
-
-### 1. Backend’i Çalıştırma
+### Backend
 
 ```bash
 cd backend/NotificationBackend
 dotnet run
 ```
 
-Backend çalıştıktan sonra aşağıdaki adresten kontrol edilebilir:
-
-```txt
-http://localhost:5199/api/health
-```
-
-### 2. Frontend’i Çalıştırma
-
-Yeni bir terminal açarak:
+### Frontend
 
 ```bash
 cd frontend/notification-frontend
@@ -150,49 +80,64 @@ npm install
 npm run dev
 ```
 
-Frontend aşağıdaki adreste çalışır:
+Frontend adresi:
 
 ```txt
 http://localhost:5173
 ```
 
-### 3. Simulator’ı Çalıştırma
+### Connector
 
-Backend ve frontend çalışırken yeni bir terminal açarak:
+```bash
+cd connector/NotificationConnector
+dotnet run
+```
+
+Beklenen durumda Webhook ve WebSocket adapterları aktif olur.
+
+### Simulator - Backend Modu
 
 ```bash
 cd simulator/NotificationSimulator
 dotnet run
 ```
 
-Simulator çalıştırıldığında backend API’ye senaryo bildirimleri gönderilir. Geçerli bildirimler frontend ekranında listelenir.
+Bu modda simulator mesajları doğrudan backend API’ye gönderir.
 
-Simulator’ı farklı bir backend adresiyle çalıştırmak için:
+### Simulator - Webhook Modu
+
+Backend, frontend ve connector çalışırken:
 
 ```bash
-BACKEND_URL=http://localhost:5199 dotnet run
+cd simulator/NotificationSimulator
+SIMULATOR_TARGET=webhook dotnet run
 ```
 
-Frontend’i farklı bir backend API adresiyle çalıştırmak için:
+### Simulator - WebSocket Modu
+
+Backend, frontend ve connector çalışırken:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:5199 npm run dev
+cd simulator/NotificationSimulator
+SIMULATOR_TARGET=websocket dotnet run
 ```
 
 ## Backend Endpointleri
 
 | Metot | Endpoint | Açıklama |
 |---|---|---|
-| GET | `/` | Servis bilgisi ve endpoint listesini döndürür |
-| GET | `/api/health` | Backend servis durumunu döndürür |
-| GET | `/api/notifications` | Kayıtlı bildirimleri listeler |
-| GET | `/api/notifications/{id}` | Belirli bir bildirimi döndürür |
+| GET | `/api/health` | Backend durumunu döndürür |
+| GET | `/api/notifications` | Bildirimleri listeler |
 | POST | `/api/notifications` | Yeni bildirim alır |
-| DELETE | `/api/notifications` | Bellekteki bildirim listesini temizler |
+| DELETE | `/api/notifications` | Bildirim listesini temizler |
 
-## Notification Formatı
+Testler arasında bildirim listesini temizlemek için:
 
-Backend’e gönderilen temel bildirim formatı:
+```bash
+curl -X DELETE http://localhost:5199/api/notifications
+```
+
+## Temel Mesaj Formatı
 
 ```json
 {
@@ -205,55 +150,33 @@ Backend’e gönderilen temel bildirim formatı:
 }
 ```
 
-Backend geçerli mesajları ortak bir envelope formatına dönüştürerek saklar ve listeler.
+## Mevcut Davranışlar
 
-## Backend Davranışları
+- Webhook ve WebSocket kaynaklarından gelen mesajlar connector tarafından alınır.
+- Mesajlar `ConnectorCore` içinde ortak formata dönüştürülür.
+- Eksik veya bozuk mesajlar backend’e gönderilmeden elenir.
+- Geçerli mesajlar backend API’ye aktarılır.
+- Duplicate mesajların tekrar kaydedilmemesi backend tarafında `deduplicationKey` ile kontrol edilir.
+- Frontend, backend’den aldığı geçerli bildirimleri listeler.
 
-Backend tarafında şu temel davranışlar uygulanmıştır:
+## Sıradaki Adımlar
 
-- Zorunlu alan kontrolü yapılır.
-- Eksik veya bozuk mesajlar `400 Bad Request` ile reddedilir.
-- Aynı `deduplicationKey` değerine sahip mesajlar tekrar kaydedilmez.
-- Duplicate mesajlar `409 Conflict` ile reddedilir.
-- Geçerli mesajlar bellekte tutulur ve liste endpointinden döndürülür.
+Bir sonraki aşamada RabbitMQ ve Redis pub/sub adapterları geliştirilecektir.
 
-## Simulator Senaryoları
+Planlanan çalışmalar:
 
-Mevcut simulator aşağıdaki test senaryolarını üretmektedir:
-
-| Senaryo | Beklenen Sonuç |
-|---|---|
-| Normal info mesajı | Backend tarafından kabul edilir ve frontend’de listelenir |
-| Warning mesajı | Backend tarafından kabul edilir ve frontend’de listelenir |
-| Error mesajı | Backend tarafından kabul edilir ve frontend’de listelenir |
-| Duplicate mesaj ilk gönderim | Backend tarafından kabul edilir |
-| Duplicate mesaj tekrar gönderim | Backend tarafından duplicate olarak reddedilir |
-| Bozuk/eksik mesaj | Backend tarafından doğrulama hatasıyla reddedilir |
-
-Frontend ekranında yalnızca geçerli mesajlar listelenir. Duplicate ve bozuk mesajlar backend tarafından elenir.
-
-## Frontend Özellikleri
-
-- Bildirim listesini backend API’den çeker.
-- Belirli aralıklarla otomatik yenilenir.
-- Manuel yenileme butonu içerir.
-- Backend bağlantı durumunu gösterir.
-- Son güncelleme zamanını gösterir.
-- Toplam, info, warning ve error bildirim sayılarını gösterir.
-- Bildirim tiplerini renkli etiketlerle ayırır.
-- Duplicate ve bozuk mesajlar frontend’e düşmez; backend tarafından elenir.
+- RabbitMQ adapter oluşturma
+- Redis pub/sub adapter oluşturma
+- RabbitMQ ve Redis için container yapılarının hazırlanması
+- Config üzerinden RabbitMQ ve Redis kaynak seçiminin eklenmesi
+- Reconnect ve hata toleransı kontrollerinin geliştirilmesi
 
 ## Docker Hedefi
 
-Proje sonunda sistem aşağıdaki adımlarla herhangi bir makinede ayağa kaldırılabilir durumda olacaktır:
+Proje sonunda sistem Docker Compose ile tek komutla ayağa kaldırılabilir hale getirilecektir.
 
 ```bash
-git clone <repo-adresi>
-cd <repo-klasörü>
 docker compose up -d --build
-docker compose ps
-docker compose logs -f connector
-docker compose down
 ```
 
-Kesin port bilgileri, servis adları ve container yapılandırmaları Docker Compose aşaması tamamlandığında README içerisinde güncellenecektir.
+Docker Compose yapılandırması ilerleyen aşamada tamamlanacaktır.
