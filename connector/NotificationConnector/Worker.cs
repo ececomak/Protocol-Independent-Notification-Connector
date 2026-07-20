@@ -21,7 +21,8 @@ public class Worker : BackgroundService
         IOptions<ConnectorOptions> connectorOptions,
         MockSourceAdapter mockSourceAdapter,
         WebhookSourceAdapter webhookSourceAdapter,
-        WebSocketSourceAdapter webSocketSourceAdapter)
+        WebSocketSourceAdapter webSocketSourceAdapter,
+        RabbitMQSourceAdapter rabbitMQSourceAdapter)
     {
         _logger = logger;
         _connector = connector;
@@ -34,7 +35,8 @@ public class Worker : BackgroundService
         {
             ["mock"] = mockSourceAdapter,
             ["webhook"] = webhookSourceAdapter,
-            ["websocket"] = webSocketSourceAdapter
+            ["websocket"] = webSocketSourceAdapter,
+            ["rabbitmq"] = rabbitMQSourceAdapter
         };
     }
 
