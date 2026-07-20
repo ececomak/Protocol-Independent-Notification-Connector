@@ -2,6 +2,7 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using RabbitMQ.Client;
 
 Console.WriteLine("Notification Simulator started.");
 
@@ -17,6 +18,21 @@ var webhookUrl = Environment.GetEnvironmentVariable("WEBHOOK_URL")
 var websocketUrl = Environment.GetEnvironmentVariable("WEBSOCKET_URL")
     ?? "ws://localhost:7072/ws/notifications";
 
+var rabbitMqHost = Environment.GetEnvironmentVariable("RABBITMQ_HOST")
+    ?? "localhost";
+
+var rabbitMqPortText = Environment.GetEnvironmentVariable("RABBITMQ_PORT")
+    ?? "5672";
+
+var rabbitMqUser = Environment.GetEnvironmentVariable("RABBITMQ_USER")
+    ?? "guest";
+
+var rabbitMqPassword = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD")
+    ?? "guest";
+
+var rabbitMqQueue = Environment.GetEnvironmentVariable("RABBITMQ_QUEUE")
+    ?? "notifications";
+
 using var httpClient = new HttpClient();
 
 Console.WriteLine("Simulator target:");
@@ -29,6 +45,7 @@ var sourceName = simulatorTarget.ToLowerInvariant() switch
 {
     "webhook" => "simulator-webhook",
     "websocket" => "simulator-websocket",
+    "rabbitmq" => "simulator-rabbitmq",
     _ => "simulator"
 };
 
@@ -104,6 +121,20 @@ if (simulatorTarget.Equals("websocket", StringComparison.OrdinalIgnoreCase))
     Console.WriteLine(websocketUrl);
 
     await SendMessagesToWebSocketAsync(websocketUrl, messages);
+}
+else if (simulatorTarget.Equals("rabbitmq", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Target RabbitMQ queue:");
+    Console.WriteLine($"{rabbitMqHost}:{rabbitMqPortText} / {rabbitMqQueue}");
+
+    await SendMessagesToRabbitMqAsync(
+        rabbitMqHost,
+        rabbitMqPortText,
+        rabbitMqUser,
+        rabbitMqPassword,
+        rabbitMqQueue,
+        messages
+    );
 }
 else
 {
@@ -208,6 +239,64 @@ static async Task SendMessagesToWebSocketAsync(
     catch (Exception ex)
     {
         Console.WriteLine("WebSocket endpoint could not be reached.");
+        Console.WriteLine(ex.Message);
+    }
+}
+
+static async Task SendMessagesToRabbitMqAsync(
+    string hostName,
+    string portText,
+    string userName,
+    string password,
+    string queueName,
+    IEnumerable<(string ScenarioName, object Payload)> messages)
+{
+    try
+    {
+        var port = int.Parse(portText);
+
+        var factory = new ConnectionFactory
+        {
+            HostName = hostName,
+            Port = port,
+            UserName = userName,
+            Password = password
+        };
+
+        await using var connection = await factory.CreateConnectionAsync();
+        await using var channel = await connection.CreateChannelAsync();
+
+        await channel.QueueDeclareAsync(
+            queue: queueName,
+            durable: false,
+            exclusive: false,
+            autoDelete: false,
+            arguments: null
+        );
+
+        foreach (var message in messages)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Scenario: {message.ScenarioName}");
+            Console.WriteLine("Publishing RabbitMQ message...");
+
+            var json = JsonSerializer.Serialize(message.Payload);
+            var body = Encoding.UTF8.GetBytes(json);
+
+            await channel.BasicPublishAsync(
+                exchange: string.Empty,
+                routingKey: queueName,
+                body: body
+            );
+
+            Console.WriteLine("Result: RabbitMQ message published.");
+
+            await WaitAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("RabbitMQ target could not be reached.");
         Console.WriteLine(ex.Message);
     }
 }
