@@ -22,7 +22,8 @@ public class Worker : BackgroundService
         MockSourceAdapter mockSourceAdapter,
         WebhookSourceAdapter webhookSourceAdapter,
         WebSocketSourceAdapter webSocketSourceAdapter,
-        RabbitMQSourceAdapter rabbitMQSourceAdapter)
+        RabbitMQSourceAdapter rabbitMQSourceAdapter,
+        RedisSourceAdapter redisSourceAdapter)
     {
         _logger = logger;
         _connector = connector;
@@ -36,7 +37,8 @@ public class Worker : BackgroundService
             ["mock"] = mockSourceAdapter,
             ["webhook"] = webhookSourceAdapter,
             ["websocket"] = webSocketSourceAdapter,
-            ["rabbitmq"] = rabbitMQSourceAdapter
+            ["rabbitmq"] = rabbitMQSourceAdapter,
+            ["redis"] = redisSourceAdapter
         };
     }
 

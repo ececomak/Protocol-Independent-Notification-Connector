@@ -16,6 +16,7 @@ builder.Services.AddSingleton<MockSourceAdapter>();
 builder.Services.AddSingleton<WebhookSourceAdapter>();
 builder.Services.AddSingleton<WebSocketSourceAdapter>();
 builder.Services.AddSingleton<RabbitMQSourceAdapter>();
+builder.Services.AddSingleton<RedisSourceAdapter>();
 
 builder.Services.AddHttpClient<INotificationPublisher, BackendNotificationPublisher>();
 
