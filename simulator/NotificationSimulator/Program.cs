@@ -3,6 +3,7 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using RabbitMQ.Client;
+using StackExchange.Redis;
 
 Console.WriteLine("Notification Simulator started.");
 
@@ -33,6 +34,15 @@ var rabbitMqPassword = Environment.GetEnvironmentVariable("RABBITMQ_PASSWORD")
 var rabbitMqQueue = Environment.GetEnvironmentVariable("RABBITMQ_QUEUE")
     ?? "notifications";
 
+var redisHost = Environment.GetEnvironmentVariable("REDIS_HOST")
+    ?? "localhost";
+
+var redisPort = Environment.GetEnvironmentVariable("REDIS_PORT")
+    ?? "6379";
+
+var redisChannel = Environment.GetEnvironmentVariable("REDIS_CHANNEL")
+    ?? "notifications";
+
 using var httpClient = new HttpClient();
 
 Console.WriteLine("Simulator target:");
@@ -46,6 +56,7 @@ var sourceName = simulatorTarget.ToLowerInvariant() switch
     "webhook" => "simulator-webhook",
     "websocket" => "simulator-websocket",
     "rabbitmq" => "simulator-rabbitmq",
+    "redis" => "simulator-redis",
     _ => "simulator"
 };
 
@@ -133,6 +144,18 @@ else if (simulatorTarget.Equals("rabbitmq", StringComparison.OrdinalIgnoreCase))
         rabbitMqUser,
         rabbitMqPassword,
         rabbitMqQueue,
+        messages
+    );
+}
+else if (simulatorTarget.Equals("redis", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("Target Redis channel:");
+    Console.WriteLine($"{redisHost}:{redisPort} / {redisChannel}");
+
+    await SendMessagesToRedisAsync(
+        redisHost,
+        redisPort,
+        redisChannel,
         messages
     );
 }
@@ -297,6 +320,42 @@ static async Task SendMessagesToRabbitMqAsync(
     catch (Exception ex)
     {
         Console.WriteLine("RabbitMQ target could not be reached.");
+        Console.WriteLine(ex.Message);
+    }
+}
+
+static async Task SendMessagesToRedisAsync(
+    string host,
+    string port,
+    string channelName,
+    IEnumerable<(string ScenarioName, object Payload)> messages)
+{
+    try
+    {
+        var connectionString = $"{host}:{port}";
+
+        await using var connection = await ConnectionMultiplexer.ConnectAsync(connectionString);
+        var subscriber = connection.GetSubscriber();
+        var redisChannel = RedisChannel.Literal(channelName);
+
+        foreach (var message in messages)
+        {
+            Console.WriteLine();
+            Console.WriteLine($"Scenario: {message.ScenarioName}");
+            Console.WriteLine("Publishing Redis message...");
+
+            var json = JsonSerializer.Serialize(message.Payload);
+
+            await subscriber.PublishAsync(redisChannel, json);
+
+            Console.WriteLine("Result: Redis message published.");
+
+            await WaitAsync();
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("Redis target could not be reached.");
         Console.WriteLine(ex.Message);
     }
 }
