@@ -25,9 +25,13 @@ Simulator -> Backend API -> Frontend
 Simulator -> WebhookSourceAdapter -> ConnectorCore -> Backend API -> Frontend
 
 Simulator -> WebSocketSourceAdapter -> ConnectorCore -> Backend API -> Frontend
+
+Simulator -> RabbitMQ -> RabbitMQSourceAdapter -> ConnectorCore -> Backend API -> Frontend
+
+Simulator -> Redis pub/sub -> RedisSourceAdapter -> ConnectorCore -> Backend API -> Frontend
 ```
 
-Webhook ve WebSocket adapterları connector üzerinden çalışmaktadır. Aktif adapter seçimi `appsettings.json` dosyası üzerinden yapılır.
+Aktif adapter seçimi `connector/NotificationConnector/appsettings.json` dosyasındaki `EnabledAdapters` alanı üzerinden yapılır.
 
 ## Proje Yapısı
 
@@ -49,21 +53,36 @@ protocol-independent-notification-connector/
 | Frontend | `http://localhost:5173` |
 | Webhook Adapter | `http://localhost:7071/webhook/notifications` |
 | WebSocket Adapter | `ws://localhost:7072/ws/notifications` |
+| RabbitMQ | `localhost:5672` |
+| RabbitMQ Management | `http://localhost:15672` |
+| Redis | `localhost:6379` |
 
 ## Environment Değerleri
 
 | Bileşen | Değişken | Açıklama |
 |---|---|---|
 | Frontend | `VITE_API_BASE_URL` | Frontend’in bağlanacağı backend adresi |
+| Simulator | `SIMULATOR_TARGET` | `backend`, `webhook`, `websocket`, `rabbitmq`, `redis` |
 | Simulator | `BACKEND_URL` | Backend hedef adresi |
 | Simulator | `WEBHOOK_URL` | Webhook hedef adresi |
 | Simulator | `WEBSOCKET_URL` | WebSocket hedef adresi |
-| Simulator | `SIMULATOR_TARGET` | `backend`, `webhook` veya `websocket` |
+| RabbitMQ | `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_QUEUE` | RabbitMQ bağlantı ayarları |
+| Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_CHANNEL` | Redis pub/sub bağlantı ayarları |
 | Backend | `FRONTEND_ORIGINS` | CORS için izin verilen frontend adresleri |
 
 ## Local Çalıştırma
 
-Projeyi local ortamda çalıştırmak için backend, frontend, connector ve simulator ayrı terminallerde başlatılır.
+RabbitMQ ve Redis servislerini başlatmak için:
+
+```bash
+docker compose up -d
+```
+
+Servisleri kontrol etmek için:
+
+```bash
+docker compose ps
+```
 
 ### Backend
 
@@ -93,34 +112,44 @@ cd connector/NotificationConnector
 dotnet run
 ```
 
-Beklenen durumda Webhook ve WebSocket adapterları aktif olur.
+Connector çalıştığında config içinde aktif olan adapterlar Register edilir.
 
-### Simulator - Backend Modu
+### Simulator
+
+Backend, frontend ve connector çalışırken simulator farklı hedeflerle çalıştırılabilir.
+
+Backend modu:
 
 ```bash
 cd simulator/NotificationSimulator
 dotnet run
 ```
 
-Bu modda simulator mesajları doğrudan backend API’ye gönderir.
-
-### Simulator - Webhook Modu
-
-Backend, frontend ve connector çalışırken:
+Webhook modu:
 
 ```bash
-cd simulator/NotificationSimulator
 SIMULATOR_TARGET=webhook dotnet run
 ```
 
-### Simulator - WebSocket Modu
-
-Backend, frontend ve connector çalışırken:
+WebSocket modu:
 
 ```bash
-cd simulator/NotificationSimulator
 SIMULATOR_TARGET=websocket dotnet run
 ```
+
+RabbitMQ modu:
+
+```bash
+SIMULATOR_TARGET=rabbitmq dotnet run
+```
+
+Redis modu:
+
+```bash
+SIMULATOR_TARGET=redis dotnet run
+```
+
+Her modda geçerli mesajların frontend ekranında ilgili kaynak adıyla listelenmesi beklenir.
 
 ## Backend Endpointleri
 
@@ -152,7 +181,7 @@ curl -X DELETE http://localhost:5199/api/notifications
 
 ## Mevcut Davranışlar
 
-- Webhook ve WebSocket kaynaklarından gelen mesajlar connector tarafından alınır.
+- Dört farklı protokolden gelen mesajlar connector adapterları tarafından alınır.
 - Mesajlar `ConnectorCore` içinde ortak formata dönüştürülür.
 - Eksik veya bozuk mesajlar backend’e gönderilmeden elenir.
 - Geçerli mesajlar backend API’ye aktarılır.
@@ -161,22 +190,23 @@ curl -X DELETE http://localhost:5199/api/notifications
 
 ## Sıradaki Adımlar
 
-Bir sonraki aşamada RabbitMQ ve Redis pub/sub adapterları geliştirilecektir.
+Bir sonraki aşamada proje dayanıklılık ve final Docker yapısına hazırlanacaktır.
 
 Planlanan çalışmalar:
 
-- RabbitMQ adapter oluşturma
-- Redis pub/sub adapter oluşturma
-- RabbitMQ ve Redis için container yapılarının hazırlanması
-- Config üzerinden RabbitMQ ve Redis kaynak seçiminin eklenmesi
-- Reconnect ve hata toleransı kontrollerinin geliştirilmesi
+- Backend ulaşılamadığında mesajların kaybolmaması için buffer/retry yapısı
+- Bağlantı kopmalarına karşı reconnect kontrolleri
+- Her bileşen için Dockerfile hazırlanması
+- Backend, frontend, connector, simulator, RabbitMQ ve Redis servislerinin tek docker-compose.yml ile ayağa kaldırılması
+- Connector config değerlerinin Docker Compose environment variable ile ezilebilir hale getirilmesi
+- README, final özet PDF’i ve demo video hazırlığı
 
 ## Docker Hedefi
 
-Proje sonunda sistem Docker Compose ile tek komutla ayağa kaldırılabilir hale getirilecektir.
+Proje sonunda sistem tek komutla ayağa kaldırılabilir hale getirilecektir:
 
 ```bash
 docker compose up -d --build
 ```
 
-Docker Compose yapılandırması ilerleyen aşamada tamamlanacaktır.
+Final Docker Compose yapısında backend, frontend, connector, simulator, RabbitMQ ve Redis birlikte çalışacaktır.
