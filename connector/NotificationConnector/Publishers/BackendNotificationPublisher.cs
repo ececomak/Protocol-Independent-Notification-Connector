@@ -1,9 +1,10 @@
+using System.Net;
 using System.Net.Http.Json;
 using NotificationConnector.Models;
 
 namespace NotificationConnector.Publishers;
 
-public class BackendNotificationPublisher : INotificationPublisher
+public class BackendNotificationPublisher
 {
     private readonly HttpClient _httpClient;
     private readonly ILogger<BackendNotificationPublisher> _logger;
@@ -22,7 +23,7 @@ public class BackendNotificationPublisher : INotificationPublisher
         _notificationsEndpoint = $"{backendUrl}/api/notifications";
     }
 
-    public async Task PublishAsync(
+    public async Task<bool> TryPublishAsync(
         NotificationEnvelope notification,
         CancellationToken cancellationToken)
     {
@@ -44,22 +45,39 @@ public class BackendNotificationPublisher : INotificationPublisher
                     notification.Type,
                     notification.Title
                 );
+
+                return true;
             }
-            else
+
+            if (response.StatusCode is HttpStatusCode.BadRequest or HttpStatusCode.Conflict)
             {
                 _logger.LogWarning(
-                    "Backend rejected notification. StatusCode: {StatusCode}, Response: {Response}",
+                    "Backend rejected notification as handled. StatusCode: {StatusCode}, Response: {Response}",
                     (int)response.StatusCode,
                     responseBody
                 );
+
+                return true;
             }
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(
-                ex,
-                "Backend API could not be reached. Notification was not published."
+
+            _logger.LogWarning(
+                "Backend could not process notification. It will be retried. StatusCode: {StatusCode}, Response: {Response}",
+                (int)response.StatusCode,
+                responseBody
             );
+
+            return false;
+        }
+        catch (Exception ex) when (
+            ex is HttpRequestException ||
+            ex is TaskCanceledException)
+        {
+            _logger.LogWarning(
+                ex,
+                "Backend API could not be reached. Notification will be retried."
+            );
+
+            return false;
         }
     }
 }

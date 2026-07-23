@@ -18,7 +18,17 @@ builder.Services.AddSingleton<WebSocketSourceAdapter>();
 builder.Services.AddSingleton<RabbitMQSourceAdapter>();
 builder.Services.AddSingleton<RedisSourceAdapter>();
 
-builder.Services.AddHttpClient<INotificationPublisher, BackendNotificationPublisher>();
+builder.Services.AddHttpClient<BackendNotificationPublisher>();
+
+builder.Services.AddSingleton<BufferedNotificationPublisher>();
+
+builder.Services.AddSingleton<INotificationPublisher>(
+    serviceProvider => serviceProvider.GetRequiredService<BufferedNotificationPublisher>()
+);
+
+builder.Services.AddHostedService(
+    serviceProvider => serviceProvider.GetRequiredService<BufferedNotificationPublisher>()
+);
 
 builder.Services.AddHostedService<Worker>();
 
