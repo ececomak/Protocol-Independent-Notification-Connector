@@ -8,9 +8,107 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7
     container_name: notification-redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend/NotificationBackend
+      dockerfile: Dockerfile
+    container_name: notification-backend
+    ports:
+      - "8080:8080"
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      FRONTEND_ORIGINS: http://localhost:3001,http://localhost:5173
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  connector:
+    build:
+      context: ./connector/NotificationConnector
+      dockerfile: Dockerfile
+    container_name: notification-connector
+    ports:
+      - "7071:7071"
+      - "7072:7072"
+    environment:
+      BACKEND_URL: http://backend:8080
+      WEBHOOK_LISTEN_URL: http://+:7071/
+      WEBSOCKET_LISTEN_URL: http://+:7072/
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_QUEUE: notifications
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: notifications
+      Connector__EnabledAdapters__0: webhook
+      Connector__EnabledAdapters__1: websocket
+      Connector__EnabledAdapters__2: rabbitmq
+      Connector__EnabledAdapters__3: redis
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    restart: on-failure
+
+  frontend:
+    build:
+      context: ./frontend/notification-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    container_name: notification-frontend
+    ports:
+      - "3001:80"
+    depends_on:
+      - backend
+
+  simulator:
+    build:
+      context: ./simulator/NotificationSimulator
+      dockerfile: Dockerfile
+    container_name: notification-simulator
+    environment:
+      SIMULATOR_TARGET: rabbitmq
+      BACKEND_URL: http://backend:8080
+      WEBHOOK_URL: http://connector:7071/webhook/notifications
+      WEBSOCKET_URL: ws://connector:7072/ws/notifications
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_QUEUE: notifications
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_CHANNEL: notifications
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      connector:
+        condition: service_started
+    restart: "no"
