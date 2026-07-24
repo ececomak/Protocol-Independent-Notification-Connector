@@ -4,9 +4,9 @@ Bu proje, farklı protokollerden gelen bildirim mesajlarını ortak bir formata 
 
 ## Amaç
 
-Projenin amacı; RabbitMQ, WebSocket, Redis pub/sub ve Webhook gibi farklı kaynaklardan gelen mesajları protokol bağımsız bir connector yapısı üzerinden ortak bir bildirim formatına dönüştürmektir.
+Projenin amacı; RabbitMQ, WebSocket, Redis pub/sub ve Webhook gibi farklı kaynaklardan gelen mesajları protokol bağımsız bir connector yapısı üzerinden ortak bildirim formatına dönüştürmektir.
 
-Connector tarafından normalize edilen mesajlar backend API’ye iletilir. Backend tarafında mesajlar doğrulanır, tekrar eden kayıtlar elenir ve frontend arayüzünde listelenir.
+Connector tarafından normalize edilen mesajlar backend API’ye iletilir. Backend tarafında mesajlar doğrulanır, duplicate kayıtlar elenir ve frontend arayüzünde listelenir.
 
 ## Bileşenler
 
@@ -16,8 +16,10 @@ Connector tarafından normalize edilen mesajlar backend API’ye iletilir. Backe
 | Connector | Protokol bağımsız çekirdek ve adapter yapısı | .NET 10 Worker Service |
 | Backend | Bildirimleri alan ve listeleyen API | ASP.NET Core Minimal API |
 | Frontend | Bildirimleri gösteren web arayüzü | React + Vite |
+| RabbitMQ | Queue tabanlı mesaj kaynağı | Docker |
+| Redis | Pub/sub tabanlı mesaj kaynağı | Docker |
 
-## Mevcut Çalışan Akışlar
+## Çalışan Akışlar
 
 ```txt
 Simulator -> Backend API -> Frontend
@@ -31,7 +33,7 @@ Simulator -> RabbitMQ -> RabbitMQSourceAdapter -> ConnectorCore -> Backend API -
 Simulator -> Redis pub/sub -> RedisSourceAdapter -> ConnectorCore -> Backend API -> Frontend
 ```
 
-Aktif adapter seçimi `connector/NotificationConnector/appsettings.json` dosyasındaki `EnabledAdapters` alanı üzerinden yapılır.
+Connector tarafında aktif adapter seçimi configuration üzerinden yapılır. Docker Compose içinde bu değerler environment variable ile yönetilir.
 
 ## Proje Yapısı
 
@@ -45,111 +47,81 @@ protocol-independent-notification-connector/
 └── docker-compose.yml
 ```
 
-## Local Portlar
+## Docker Compose ile Çalıştırma
 
-| Servis | Adres |
-|---|---|
-| Backend | `http://localhost:5199` |
-| Frontend | `http://localhost:5173` |
-| Webhook Adapter | `http://localhost:7071/webhook/notifications` |
-| WebSocket Adapter | `ws://localhost:7072/ws/notifications` |
-| RabbitMQ | `localhost:5672` |
-| RabbitMQ Management | `http://localhost:15672` |
-| Redis | `localhost:6379` |
-
-## Environment Değerleri
-
-| Bileşen | Değişken | Açıklama |
-|---|---|---|
-| Frontend | `VITE_API_BASE_URL` | Frontend’in bağlanacağı backend adresi |
-| Simulator | `SIMULATOR_TARGET` | `backend`, `webhook`, `websocket`, `rabbitmq`, `redis` |
-| Simulator | `BACKEND_URL` | Backend hedef adresi |
-| Simulator | `WEBHOOK_URL` | Webhook hedef adresi |
-| Simulator | `WEBSOCKET_URL` | WebSocket hedef adresi |
-| RabbitMQ | `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_QUEUE` | RabbitMQ bağlantı ayarları |
-| Redis | `REDIS_HOST`, `REDIS_PORT`, `REDIS_CHANNEL` | Redis pub/sub bağlantı ayarları |
-| Backend | `FRONTEND_ORIGINS` | CORS için izin verilen frontend adresleri |
-
-## Local Çalıştırma
-
-RabbitMQ ve Redis servislerini başlatmak için:
+Proje Docker Compose ile tek komutla ayağa kaldırılabilir.
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-Servisleri kontrol etmek için:
+Servislerin durumunu kontrol etmek için:
 
 ```bash
-docker compose ps
+docker compose ps -a
 ```
 
-### Backend
+Connector loglarını izlemek için:
 
 ```bash
-cd backend/NotificationBackend
-dotnet run
+docker compose logs -f connector
 ```
 
-### Frontend
-
-```bash
-cd frontend/notification-frontend
-npm install
-npm run dev
-```
-
-Frontend adresi:
+Frontend arayüzü:
 
 ```txt
-http://localhost:5173
+http://localhost:3001
 ```
 
-### Connector
+Backend API:
+
+```txt
+http://localhost:8080
+```
+
+Bildirim listesini kontrol etmek için:
+
+```txt
+http://localhost:8080/api/notifications
+```
+
+Sistemi kapatmak için:
 
 ```bash
-cd connector/NotificationConnector
-dotnet run
+docker compose down
 ```
 
-Connector çalıştığında config içinde aktif olan adapterlar Register edilir.
+## Varsayılan Docker Senaryosu
 
-### Simulator
+Docker Compose ile sistem ayağa kalktığında simulator varsayılan olarak RabbitMQ hedefiyle çalışır.
 
-Backend, frontend ve connector çalışırken simulator farklı hedeflerle çalıştırılabilir.
+```txt
+Simulator -> RabbitMQ -> Connector -> Backend -> Frontend
+```
 
-Backend modu:
+Bu senaryoda frontend ekranında `simulator-rabbitmq` kaynaklı geçerli bildirimlerin listelenmesi beklenir.
+
+## Diğer Protokolleri Test Etme
+
+Docker Compose ayaktayken simulator farklı hedeflerle tekrar çalıştırılabilir.
 
 ```bash
-cd simulator/NotificationSimulator
-dotnet run
+docker compose run --rm -e SIMULATOR_TARGET=redis simulator
 ```
-
-Webhook modu:
 
 ```bash
-SIMULATOR_TARGET=webhook dotnet run
+docker compose run --rm -e SIMULATOR_TARGET=webhook simulator
 ```
-
-WebSocket modu:
 
 ```bash
-SIMULATOR_TARGET=websocket dotnet run
+docker compose run --rm -e SIMULATOR_TARGET=websocket simulator
 ```
-
-RabbitMQ modu:
 
 ```bash
-SIMULATOR_TARGET=rabbitmq dotnet run
+docker compose run --rm -e SIMULATOR_TARGET=rabbitmq simulator
 ```
 
-Redis modu:
-
-```bash
-SIMULATOR_TARGET=redis dotnet run
-```
-
-Her modda geçerli mesajların frontend ekranında ilgili kaynak adıyla listelenmesi beklenir.
+Her çalıştırmada geçerli mesajların frontend ekranında ilgili kaynak adıyla listelenmesi beklenir.
 
 ## Backend Endpointleri
 
@@ -160,10 +132,10 @@ Her modda geçerli mesajların frontend ekranında ilgili kaynak adıyla listele
 | POST | `/api/notifications` | Yeni bildirim alır |
 | DELETE | `/api/notifications` | Bildirim listesini temizler |
 
-Testler arasında bildirim listesini temizlemek için:
+Bildirim listesini temizlemek için:
 
 ```bash
-curl -X DELETE http://localhost:5199/api/notifications
+curl -X DELETE http://localhost:8080/api/notifications
 ```
 
 ## Temel Mesaj Formatı
@@ -185,28 +157,6 @@ curl -X DELETE http://localhost:5199/api/notifications
 - Mesajlar `ConnectorCore` içinde ortak formata dönüştürülür.
 - Eksik veya bozuk mesajlar backend’e gönderilmeden elenir.
 - Geçerli mesajlar backend API’ye aktarılır.
-- Duplicate mesajların tekrar kaydedilmemesi backend tarafında `deduplicationKey` ile kontrol edilir.
-- Frontend, backend’den aldığı geçerli bildirimleri listeler.
-
-## Sıradaki Adımlar
-
-Bir sonraki aşamada proje dayanıklılık ve final Docker yapısına hazırlanacaktır.
-
-Planlanan çalışmalar:
-
-- Backend ulaşılamadığında mesajların kaybolmaması için buffer/retry yapısı
-- Bağlantı kopmalarına karşı reconnect kontrolleri
-- Her bileşen için Dockerfile hazırlanması
-- Backend, frontend, connector, simulator, RabbitMQ ve Redis servislerinin tek docker-compose.yml ile ayağa kaldırılması
-- Connector config değerlerinin Docker Compose environment variable ile ezilebilir hale getirilmesi
-- README, final özet PDF’i ve demo video hazırlığı
-
-## Docker Hedefi
-
-Proje sonunda sistem tek komutla ayağa kaldırılabilir hale getirilecektir:
-
-```bash
-docker compose up -d --build
-```
-
-Final Docker Compose yapısında backend, frontend, connector, simulator, RabbitMQ ve Redis birlikte çalışacaktır.
+- Duplicate mesajlar `deduplicationKey` ile tekrar kaydedilmez.
+- Backend ulaşılamazsa mesajlar connector içinde buffer’da bekletilir ve tekrar denenir.
+- Frontend yalnızca backend’den aldığı geçerli bildirimleri listeler.
